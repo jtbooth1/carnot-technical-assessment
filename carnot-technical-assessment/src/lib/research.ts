@@ -190,6 +190,82 @@ async function enqueueDeepResearchBackground(prompt: string): Promise<{ id: stri
     return { id }
 }
 
+export async function startFollowupResearch(followupId: string, organizationId: string): Promise<void> {
+  try {
+    // Get the followup and related data
+    const followup = await db.followup.findUnique({
+      where: { id: followupId },
+      include: {
+        result: {
+          include: {
+            task: {
+              include: {
+                topic: true
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!followup) {
+      throw new Error('Followup not found')
+    }
+
+    const topic = followup.result.task.topic
+    if (topic.organizationId !== organizationId) {
+      throw new Error('Unauthorized')
+    }
+
+    // Enforce max 2 tasks PROCESSING per org
+    const inProcessCount = await db.researchTask.count({
+      where: {
+        status: 'PROCESSING',
+        topic: { organizationId },
+      }
+    })
+
+    if (inProcessCount >= 2) {
+      return
+    }
+
+    // Create a new research task for this topic
+    const task = await db.researchTask.create({
+      data: {
+        topicId: topic.id,
+        status: 'PROCESSING',
+        startedAt: new Date(),
+      }
+    })
+
+    // Build the followup prompt using the original research text
+    const prompt = buildFollowupPrompt(followup.result.text, {
+      topic: followup.topic,
+      detail: followup.detail
+    })
+
+    // Persist query
+    await db.researchQuery.create({
+      data: {
+        taskId: task.id,
+        prompt,
+      }
+    })
+
+    const bg = await enqueueDeepResearchBackground(prompt)
+
+    // Store background job id
+    await db.researchTask.update({
+      where: { id: task.id },
+      data: { backgroundId: bg.id },
+    })
+
+  } catch (err) {
+    console.error('Followup research error:', err)
+    throw err
+  }
+}
+
 export async function startResearchForTopicId(topicId: string, organizationId: string): Promise<void> {
   try {
     // Enforce max 2 tasks PROCESSING per org

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc'
 import { db } from '../db'
-import { startResearchForTopicId, checkAndFinalizeResearchForTopic } from '../research'
+import { startResearchForTopicId, checkAndFinalizeResearchForTopic, startFollowupResearch } from '../research'
 
 export const companiesRouter = router({
   create: protectedProcedure
@@ -261,6 +261,17 @@ export const companiesRouter = router({
           }
         })
       })
+
+      return { success: true }
+    }),
+
+  digDeeper: protectedProcedure
+    .input(z.object({
+      followupId: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Fire-and-forget; helper enforces ≤2 PROCESSING per org and checks authorization
+      void startFollowupResearch(input.followupId, ctx.user.organizationId)
 
       return { success: true }
     }),

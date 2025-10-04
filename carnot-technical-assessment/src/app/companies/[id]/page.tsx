@@ -25,6 +25,9 @@ export default function CompanyDetail() {
     { enabled: !!user && !!id }
   )
 
+  const checkStatusMutation = trpc.companies.checkStatus.useMutation()
+  const digDeeperMutation = trpc.companies.digDeeper.useMutation()
+
   // Default to opening the first task
   useEffect(() => {
     if (companyQuery.data?.researchTasks.length) {
@@ -40,6 +43,31 @@ export default function CompanyDetail() {
     }
   }, [companyQuery.data?.researchTasks])
 
+  // Polling: check status every 3 seconds if there are active tasks
+  useEffect(() => {
+    if (!companyQuery.data) return
+
+    const hasActiveTasks = companyQuery.data.researchTasks.some(
+      t => t.status === 'PENDING' || t.status === 'PROCESSING'
+    )
+
+    if (!hasActiveTasks) return
+
+    const interval = setInterval(async () => {
+      try {
+        const result = await checkStatusMutation.mutateAsync({ id })
+        if (result.updated) {
+          // Refetch to get the latest data
+          companyQuery.refetch()
+        }
+      } catch (err) {
+        console.error('Polling error:', err)
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [companyQuery.data, id])
+
   const toggleTask = (taskId: string) => {
     setExpandedTasks(prev => {
       const next = new Set(prev)
@@ -50,6 +78,17 @@ export default function CompanyDetail() {
       }
       return next
     })
+  }
+
+  const handleDigDeeper = async (followupId: string) => {
+    try {
+      await digDeeperMutation.mutateAsync({ followupId })
+      // Refetch to show the new task
+      await companyQuery.refetch()
+    } catch (err) {
+      console.error('Dig deeper error:', err)
+      alert('Failed to start followup research')
+    }
   }
 
   if (authLoading) {
@@ -68,7 +107,7 @@ export default function CompanyDetail() {
   }
 
   return (
-    <div style={{ padding: '16px' }}>
+    <div style={{ padding: '16px', paddingRight: '32px' }}>
       <Navigation />
       <main style={{ maxWidth: '1200px' }}>
         {companyQuery.isLoading && <p>Loading company data...</p>}
@@ -215,14 +254,30 @@ export default function CompanyDetail() {
                               border: '1px solid #000',
                               backgroundColor: '#fafafa',
                               fontSize: '14px',
+                              position: 'relative',
                             }}
                           >
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
                               {followup.topic}
                             </div>
-                            <div style={{ color: '#444', fontSize: '13px' }}>
+                            <div style={{ color: '#444', fontSize: '13px', marginBottom: '12px' }}>
                               {followup.detail}
                             </div>
+                            <button
+                              onClick={() => handleDigDeeper(followup.id)}
+                              disabled={digDeeperMutation.isPending}
+                              style={{
+                                padding: '6px 12px',
+                                border: '1px solid #000',
+                                backgroundColor: '#fff',
+                                cursor: digDeeperMutation.isPending ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                width: '100%',
+                              }}
+                            >
+                              {digDeeperMutation.isPending ? 'Starting...' : 'Dig Deeper →'}
+                            </button>
                           </div>
                         ))}
                       </div>
