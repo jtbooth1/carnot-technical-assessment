@@ -16,7 +16,27 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## URL Structure
+
+The app consists of the following pages:
+
+### Public Pages
+- **`/`** - Home page with welcome message and navigation
+- **`/login`** - User login form (email/password)
+- **`/register`** - User registration form (email/password)
+
+### Protected Pages (require authentication)
+- **`/messages`** - Send messages (messages are logged to backend console)
+- **`/me`** - Display user profile and JWT claims in plaintext
+
+### API Routes
+- **`/api/trpc/*`** - tRPC API endpoints for authentication and messaging
+
+### Authentication Flow
+1. Register a new user at `/register`
+2. Login at `/login` 
+3. Access protected pages (`/messages`, `/me`)
+4. JWT tokens are automatically managed in localStorage
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

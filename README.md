@@ -20,3 +20,9 @@ Setup steps, per ChatGPT:
 >   @prisma/client prisma \
 >   zod
 > npx prisma init --datasource-provider sqlite
+
+## Style
+
+The app style is brutalist black-on-white css. We minimize local styling in favor of top-level
+definitions based on <section>/<header>/etc. Corners are not rounded. Padding/margin is 4px/8px/16px.
+There is no color except as specified by the USER.
