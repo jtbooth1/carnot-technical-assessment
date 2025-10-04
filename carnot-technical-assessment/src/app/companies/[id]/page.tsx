@@ -256,20 +256,31 @@ export default function CompanyDetail() {
                 const completedTask = companyQuery.data.researchTasks.find(t => t.status === 'COMPLETED' && t.result?.followups)
                 const followups = completedTask?.result?.followups || []
                 
+                // Sort followups: incomplete first, completed last
+                const sortedFollowups = [...followups].sort((a, b) => {
+                  const aCompleted = a.researchTasks && a.researchTasks.length > 0
+                  const bCompleted = b.researchTasks && b.researchTasks.length > 0
+                  if (aCompleted === bCompleted) return 0
+                  return aCompleted ? 1 : -1
+                })
+                
                 return (
                   <aside style={{ flex: '0 0 25%' }}>
                     <h3 style={{ marginBottom: '16px', marginTop: '0' }}>Follow-ups</h3>
-                    {followups.length > 0 ? (
+                    {sortedFollowups.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {followups.map((followup) => (
+                        {sortedFollowups.map((followup) => {
+                          const isCompleted = followup.researchTasks && followup.researchTasks.length > 0
+                          return (
                           <div
                             key={followup.id}
                             style={{
                               padding: '12px',
                               border: '1px solid #000',
-                              backgroundColor: '#fafafa',
+                              backgroundColor: isCompleted ? '#f0f0f0' : '#fafafa',
                               fontSize: '14px',
                               position: 'relative',
+                              opacity: isCompleted ? 0.7 : 1,
                             }}
                           >
                             <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>
@@ -278,23 +289,40 @@ export default function CompanyDetail() {
                             <div style={{ color: '#444', fontSize: '13px', marginBottom: '12px' }}>
                               {followup.detail}
                             </div>
-                            <button
-                              onClick={() => handleDigDeeper(followup.id)}
-                              disabled={digDeeperMutation.isPending}
-                              style={{
-                                padding: '6px 12px',
-                                border: '1px solid #000',
-                                backgroundColor: '#fff',
-                                cursor: digDeeperMutation.isPending ? 'not-allowed' : 'pointer',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                width: '100%',
-                              }}
-                            >
-                              {digDeeperMutation.isPending ? 'Starting...' : 'Dig Deeper →'}
-                            </button>
+                            {isCompleted ? (
+                              <div
+                                style={{
+                                  padding: '6px 12px',
+                                  border: '1px solid #0a0',
+                                  backgroundColor: '#e8f5e9',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  textAlign: 'center',
+                                  color: '#0a0',
+                                }}
+                              >
+                                ✓ Complete
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleDigDeeper(followup.id)}
+                                disabled={digDeeperMutation.isPending}
+                                style={{
+                                  padding: '6px 12px',
+                                  border: '1px solid #000',
+                                  backgroundColor: '#fff',
+                                  cursor: digDeeperMutation.isPending ? 'not-allowed' : 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  width: '100%',
+                                }}
+                              >
+                                {digDeeperMutation.isPending ? 'Starting...' : 'Dig Deeper →'}
+                              </button>
+                            )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ) : (
                       <p style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>

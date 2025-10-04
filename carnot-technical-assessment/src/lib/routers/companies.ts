@@ -182,7 +182,16 @@ export const companiesRouter = router({
                   text: true,
                   createdAt: true,
                   links: true,
-                  followups: true,
+                  followups: {
+                    include: {
+                      researchTasks: {
+                        select: {
+                          id: true,
+                          status: true,
+                        }
+                      }
+                    }
+                  },
                 }
               }
             },
