@@ -12,10 +12,10 @@ export default function Messages() {
   const { user } = useAuth()
 
   const sendMutation = trpc.messages.send.useMutation({
-    onSuccess: () => {
-      setMessage('Message sent successfully!')
+    onSuccess: (data) => {
+      setMessage(`Message sent successfully! ChatGPT response: ${data.response}`)
       setContent('')
-      setTimeout(() => setMessage(''), 3000)
+      setTimeout(() => setMessage(''), 5000)
     },
     onError: (error) => {
       setMessage(`Error: ${error.message}`)

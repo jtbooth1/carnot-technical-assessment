@@ -38,6 +38,30 @@ The app consists of the following pages:
 3. Access protected pages (`/messages`, `/me`)
 4. JWT tokens are automatically managed in localStorage
 
+## Database Schema
+
+The app uses SQLite with Prisma ORM. The database contains two main tables:
+
+### Users Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`email`** (String, Unique) - User's email address for authentication
+- **`password`** (String) - Hashed password using bcrypt
+- **`createdAt`** (DateTime) - Account creation timestamp
+- **`updatedAt`** (DateTime) - Last update timestamp
+- **`messages`** (Relation) - One-to-many relationship with messages
+
+### Messages Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`content`** (String) - Message content (1-1000 characters)
+- **`userId`** (String, Foreign Key) - Reference to the user who sent the message
+- **`user`** (Relation) - Many-to-one relationship with users
+- **`createdAt`** (DateTime) - Message creation timestamp
+
+### Database Configuration
+- **Provider**: SQLite
+- **File**: `dev.db` (local development)
+- **Prisma Client**: Generated to `src/generated/prisma`
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
