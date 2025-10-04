@@ -34,17 +34,13 @@ function buildPrompt(companyName: string, areasOfInterest?: string | null): stri
 }
 
 async function enqueueDeepResearchBackground(prompt: string): Promise<{ id: string }> {
-
-    // @ts-ignore - responses is available in modern SDKs
     const resp = await openai.responses.create({
       model: OPENAI_MODEL,
       input: prompt,
       background: true,
-      // @ts-ignore
-      signal: controller.signal,
-      // Retain budget hint; provider may ignore
-      max_output_tokens: 10000,
-      temperature: 0.2,
+      tools: [
+        { type: 'web_search' }
+      ]
     })
 
     const anyResp: any = resp
@@ -118,10 +114,10 @@ export async function startResearchForTopicId(topicId: string, organizationId: s
     // Kick off background research job with OpenAI; we'll poll later
     const bg = await enqueueDeepResearchBackground(prompt)
 
-    // Temporarily stash background id for later polling in rewrittenPrompt
-    await db.researchQuery.update({
-      where: { id: query.id },
-      data: { rewrittenPrompt: bg.id },
+    // Store background job id on the task for polling
+    await db.researchTask.update({
+      where: { id: task.id },
+      data: { backgroundId: bg.id },
     })
 
     // Leave task in PROCESSING; a separate poller will complete it later

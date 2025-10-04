@@ -76,6 +76,7 @@ model ResearchTask {
   createdAt     DateTime        @default(now())
   startedAt     DateTime?       // When processing actually began
   completedAt   DateTime?       // When it finished (success or failure)
+  backgroundId  String?         // OpenAI Responses background job id
   query         ResearchQuery?
   result        ResearchResult?
 

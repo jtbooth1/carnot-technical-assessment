@@ -86,6 +86,31 @@ export const companiesRouter = router({
       return companies
     }),
 
+  delete: protectedProcedure
+    .input(z.object({
+      id: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure topic exists and belongs to org
+      const topic = await db.topic.findFirst({
+        where: {
+          id: input.id,
+          type: 'company',
+          organizationId: ctx.user.organizationId,
+        },
+        select: { id: true }
+      })
+
+      if (!topic) {
+        throw new Error('Company not found')
+      }
+
+      // Delete topic; cascades will remove related research entities
+      await db.topic.delete({ where: { id: topic.id } })
+
+      return { success: true }
+    }),
+
   startResearch: protectedProcedure
     .input(z.object({
       id: z.string(), // topic/company id

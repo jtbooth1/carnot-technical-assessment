@@ -34,6 +34,15 @@ export default function Companies() {
     }
   })
 
+  const deleteMutation = trpc.companies.delete.useMutation({
+    onSuccess: () => {
+      companiesQuery.refetch()
+    },
+    onError: (error) => {
+      setError(error.message)
+    }
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -131,8 +140,39 @@ export default function Companies() {
                       minWidth: '250px',
                       maxWidth: '300px',
                       flex: '1 1 250px',
+                      position: 'relative',
                     }}
                   >
+                    <button
+                      aria-label="Delete company"
+                      title="Delete"
+                      onClick={() => {
+                        if (deleteMutation.isPending) return
+                        const ok = window.confirm('Delete this company and all associated research? This cannot be undone.')
+                        if (!ok) return
+                        deleteMutation.mutate({ id: company.id })
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        width: '24px',
+                        height: '24px',
+                        background: '#000',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '2px',
+                        cursor: deleteMutation.isPending ? 'not-allowed' : 'pointer',
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      ×
+                    </button>
                     <h3 style={{ margin: '0 0 8px 0' }}>{company.name}</h3>
                     {company.areasOfInterest && (
                       <p style={{ 
