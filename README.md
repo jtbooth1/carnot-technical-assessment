@@ -1,7 +1,9 @@
 # Deep Research Platform
 
 DRP is a web app wrapping the OpenAI API to support the user
-in using Deep Research functionality.
+in using Deep Research functionality. These docs are provided for the benefit of
+any LLM agent working on this project. If they are unclear or incomplete, please
+alert the user.
 
 ## App Layout & Tech Stack
 
