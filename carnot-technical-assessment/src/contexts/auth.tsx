@@ -44,7 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (token && meError && !meLoading) {
       // Token exists but user data failed to load (and we're not loading)
       logout()
-    } else if (!token) {
       setIsLoading(false)
     }
   }, [meData, meError, meLoading, token])

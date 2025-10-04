@@ -29,12 +29,14 @@ function buildPrompt(companyName: string, areasOfInterest?: string | null): stri
     `- Prefer credible sources. Avoid speculation.\n` +
     `- Cite sources as markdown links in “Sources”.\n` +
     `- Keep it readable; no fluff.\n` +
+    `- We are operating in a low rate limit environment. Limit your tool calls and web searches.\n` +
     `- If information is uncertain, say so.`
   )
 }
 
 async function enqueueDeepResearchBackground(prompt: string): Promise<{ id: string }> {
     const resp = await openai.responses.create({
+      max_output_tokens: 10000,
       model: OPENAI_MODEL,
       input: prompt,
       background: true,

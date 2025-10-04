@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
@@ -51,6 +51,38 @@ export default function Companies() {
       setError(error.message)
     }
   })
+
+  const isPollingRef = useRef(false)
+
+  useEffect(() => {
+    if (!user) return
+
+    const pollOnce = async () => {
+      if (isPollingRef.current) return
+      isPollingRef.current = true
+      try {
+        const items = companiesQuery.data || []
+        const ids = items
+          .filter((c) => c.researchTasks.length > 0 && (c.researchTasks[0].status === 'PENDING' || c.researchTasks[0].status === 'PROCESSING'))
+          .map((c) => c.id)
+
+        for (const id of ids) {
+          await checkStatusMutation.mutateAsync({ id })
+        }
+
+        if (ids.length > 0) {
+          await companiesQuery.refetch()
+        }
+      } catch {
+        // ignore polling errors
+      } finally {
+        isPollingRef.current = false
+      }
+    }
+
+    const interval = setInterval(pollOnce, 5000)
+    return () => clearInterval(interval)
+  }, [user, companiesQuery, checkStatusMutation])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
