@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc'
 import { db } from '../db'
+import { startResearchForTopicId } from '../research'
 
 export const companiesRouter = router({
   create: protectedProcedure
@@ -20,6 +21,17 @@ export const companiesRouter = router({
           private: false, // Companies are org-wide by default
         }
       })
+
+      // Enqueue initial research task (PENDING)
+      await db.researchTask.create({
+        data: {
+          topicId: company.id,
+          status: 'PENDING',
+        }
+      })
+
+      // Fire-and-forget start (respecting org concurrency in helper). Do not await.
+      void startResearchForTopicId(company.id, ctx.user.organizationId)
       
       return { 
         success: true, 
@@ -74,6 +86,39 @@ export const companiesRouter = router({
       return companies
     }),
 
+  startResearch: protectedProcedure
+    .input(z.object({
+      id: z.string(), // topic/company id
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure topic belongs to org and is a company
+      const topic = await db.topic.findFirst({
+        where: {
+          id: input.id,
+          type: 'company',
+          organizationId: ctx.user.organizationId,
+        },
+        select: { id: true }
+      })
+
+      if (!topic) {
+        throw new Error('Company not found')
+      }
+
+      // Ensure a PENDING task exists so UI can reflect queueing if concurrency is saturated
+      const existingPending = await db.researchTask.findFirst({
+        where: { topicId: topic.id, status: 'PENDING' }
+      })
+      if (!existingPending) {
+        await db.researchTask.create({ data: { topicId: topic.id, status: 'PENDING' } })
+      }
+
+      // Fire-and-forget; helper enforces ≤2 PROCESSING per org
+      void startResearchForTopicId(topic.id, ctx.user.organizationId)
+
+      return { success: true }
+    }),
+
   get: protectedProcedure
     .input(z.object({
       id: z.string(),
@@ -100,7 +145,10 @@ export const companiesRouter = router({
             include: {
               query: true,
               result: {
-                include: {
+                select: {
+                  id: true,
+                  text: true,
+                  createdAt: true,
                   links: true,
                 }
               }
