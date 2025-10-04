@@ -144,6 +144,9 @@ export default function CompanyDetail() {
 
               {companyQuery.data.researchTasks.map((task) => {
                 const isExpanded = expandedTasks.has(task.id)
+                const title = task.followup 
+                  ? `Dig Deeper: ${task.followup.topic}`
+                  : `Initial Research: ${companyQuery.data.name}`
                 
                 return (
                 <div 
@@ -162,7 +165,7 @@ export default function CompanyDetail() {
                     paddingBottom: '8px',
                     borderBottom: '1px solid #ccc'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                       <button
                         onClick={() => toggleTask(task.id)}
                         style={{
@@ -184,17 +187,29 @@ export default function CompanyDetail() {
                           ▶
                         </span>
                       </button>
-                      <div>
-                        <strong>Status:</strong> <span style={{ 
-                          textTransform: 'uppercase',
-                          fontWeight: 'bold',
-                          color: task.status === 'COMPLETED' ? '#0a0' : 
-                                 task.status === 'FAILED' ? '#c00' : 
-                                 task.status === 'PROCESSING' ? '#fa0' : '#666'
-                        }}>{task.status}</span>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ 
+                          margin: 0, 
+                          fontSize: '18px',
+                          fontWeight: 'bold'
+                        }}>
+                          {title}
+                        </h3>
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#888',
+                          marginTop: '4px'
+                        }}>
+                          Status: <span style={{ 
+                            textTransform: 'uppercase',
+                            color: task.status === 'COMPLETED' ? '#0a0' : 
+                                   task.status === 'FAILED' ? '#c00' : 
+                                   task.status === 'PROCESSING' ? '#fa0' : '#666'
+                          }}>{task.status}</span>
+                        </div>
                       </div>
                     </div>
-                    <div style={{ fontSize: '14px', color: '#666' }}>
+                    <div style={{ fontSize: '12px', color: '#888' }}>
                       {new Date(task.createdAt).toLocaleString()}
                     </div>
                   </div>

@@ -169,6 +169,13 @@ export const companiesRouter = router({
           researchTasks: {
             include: {
               query: true,
+              followup: {
+                select: {
+                  id: true,
+                  topic: true,
+                  detail: true,
+                }
+              },
               result: {
                 select: {
                   id: true,

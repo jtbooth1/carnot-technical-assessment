@@ -229,10 +229,11 @@ export async function startFollowupResearch(followupId: string, organizationId: 
       return
     }
 
-    // Create a new research task for this topic
+    // Create a new research task for this topic with reference to the followup
     const task = await db.researchTask.create({
       data: {
         topicId: topic.id,
+        followupId: followupId,
         status: 'PROCESSING',
         startedAt: new Date(),
       }

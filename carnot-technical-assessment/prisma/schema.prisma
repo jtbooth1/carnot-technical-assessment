@@ -71,6 +71,8 @@ model ResearchTask {
   id            String          @id @default(cuid())
   topicId       String
   topic         Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  followupId    String?         // Optional: if this task was triggered by a followup
+  followup      Followup?       @relation(fields: [followupId], references: [id], onDelete: SetNull)
   status        String          // PENDING, PROCESSING, COMPLETED, FAILED
   error         String?         // Error message if failed
   createdAt     DateTime        @default(now())
@@ -84,6 +86,7 @@ model ResearchTask {
   @@index([topicId, status])
   @@index([status])
   @@index([createdAt])
+  @@index([followupId])
 }
 
 model ResearchQuery {
@@ -124,11 +127,12 @@ model Link {
 }
 
 model Followup {
-  id       String         @id @default(cuid())
-  resultId String
-  result   ResearchResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
-  topic    String
-  detail   String
+  id            String         @id @default(cuid())
+  resultId      String
+  result        ResearchResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  topic         String
+  detail        String
+  researchTasks ResearchTask[] // Tasks that were created from this followup
 
   @@map("followups")
   @@index([resultId])
