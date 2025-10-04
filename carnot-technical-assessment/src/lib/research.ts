@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { db } from './db'
 
-const OPENAI_MODEL = process.env.RESEARCH_MODEL || 'o4-mini'
-const RESEARCH_TIMEOUT_MS = Number(process.env.RESEARCH_TIMEOUT_MS || 60000)
+const OPENAI_MODEL = process.env.RESEARCH_MODEL || 'o4-mini-deep-research'
+const CHAT_MODEL = process.env.CHAT_MODEL || 'gpt-4o-mini'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,14 +24,154 @@ function buildPrompt(companyName: string, areasOfInterest?: string | null): stri
     `5) Business Model and Moat\n` +
     `6) Risks/Constraints\n` +
     `7) Noteworthy Recent Developments (last 12–18 months)\n` +
-    `8) Sources\n\n` +
     `Guidelines:\n` +
     `- Prefer credible sources. Avoid speculation.\n` +
-    `- Cite sources as markdown links in “Sources”.\n` +
+    `- Include sources inline as markdown links.\n` +
+    `- Keep it readable; no fluff.\n` +
+    `- We are operating in a low rate limit environment. Limit your tool calls and web searches.\n` +
+    `- If information is uncertain, say so.` +
+    `- You may add or remove sections based on the user's areas of interest or any outstanding or surprising information you find.`
+  )
+}
+
+type Followup = {
+  topic: string
+  detail: string
+}
+
+function buildGenerateFollowupIdeasPrompt(response: string): string {
+  return (
+    `You are a careful, thorough research assistant. You previously produced the following report:\n\n${response}\n\n` +
+    `Your task is now to generate proposals for further research to extend the report in different directions.\n\n` +
+    `Your response should be in the format: { "followups": [{"topic": "products", "detail": "what are the products and services the company offers?"}]}` +
+    `You must only respond in json format. Do not include any other text. The topic and detail will be displayed to the user AND used to generate a new research task.` +
+    `- Prefer credible sources. Avoid speculation.\n` +
+    `- Include sources inline as markdown links.\n` +
     `- Keep it readable; no fluff.\n` +
     `- We are operating in a low rate limit environment. Limit your tool calls and web searches.\n` +
     `- If information is uncertain, say so.`
   )
+}
+
+function buildFollowupPrompt(response: string, followup: Followup): string {
+  return (
+    `You are a careful, thorough research assistant. You previously produced the following report:\n\n${response}\n\n` +
+    `Your task is now to generate a report based on the following followup:\n\n${followup.topic}\n\n${followup.detail}\n\n` +
+    `- Prefer credible sources. Avoid speculation.\n` +
+    `- Include sources inline as markdown links.\n` +
+    `- Keep it readable; no fluff.\n` +
+    `- We are operating in a low rate limit environment. Limit your tool calls and web searches.\n` +
+    `- If information is uncertain, say so.`
+  )
+}
+
+function extractAnnotationsFromResponse(resp: any): Array<{
+  url: string
+  title: string
+  startIndex: number
+  endIndex: number
+}> {
+  const annotations: Array<{
+    url: string
+    title: string
+    startIndex: number
+    endIndex: number
+  }> = []
+
+  try {
+    const output = resp.output || []
+    for (const item of output) {
+      if (item.type === 'message' && item.content) {
+        for (const contentItem of item.content) {
+          if (contentItem.type === 'output_text' && contentItem.annotations) {
+            for (const ann of contentItem.annotations) {
+              if (ann.type === 'url_citation' && ann.url && ann.title) {
+                annotations.push({
+                  url: ann.url,
+                  title: ann.title,
+                  startIndex: ann.start_index ?? 0,
+                  endIndex: ann.end_index ?? 0,
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error extracting annotations:', err)
+  }
+
+  return annotations
+}
+
+async function generateFollowupsWithChatModel(outputText: string): Promise<Followup[]> {
+  try {
+    const prompt = buildGenerateFollowupIdeasPrompt(outputText)
+    
+    const response = await openai.chat.completions.create({
+      model: CHAT_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+    })
+    console.log('Chat model response:', JSON.stringify(response.choices[0]?.message, null, 2))
+
+    const content = response.choices[0]?.message?.content
+    if (!content) {
+      console.warn('No content in chat model response')
+      return []
+    }
+
+    // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+    let jsonContent = content.trim()
+    const codeBlockMatch = jsonContent.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/m)
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1].trim()
+    }
+
+    // Try to parse as JSON
+    const parsed = JSON.parse(jsonContent)
+
+    // Validate format
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('Invalid followup response: not an object')
+      return []
+    }
+
+    if (!Array.isArray(parsed.followups)) {
+      console.warn('Invalid followup response: followups is not an array')
+      return []
+    }
+
+    // Validate each followup has topic and detail
+    const validFollowups: Followup[] = []
+    for (const item of parsed.followups) {
+      if (
+        item &&
+        typeof item === 'object' &&
+        typeof item.topic === 'string' &&
+        typeof item.detail === 'string' &&
+        item.topic.trim().length > 0 &&
+        item.detail.trim().length > 0
+      ) {
+        validFollowups.push({
+          topic: item.topic.trim(),
+          detail: item.detail.trim()
+        })
+      }
+    }
+
+    return validFollowups
+  } catch (err) {
+    console.error('Error generating followups:', err)
+    return []
+  }
 }
 
 async function enqueueDeepResearchBackground(prompt: string): Promise<{ id: string }> {
@@ -113,7 +253,6 @@ export async function startResearchForTopicId(topicId: string, organizationId: s
       }
     })
 
-    // Kick off background research job with OpenAI; we'll poll later
     const bg = await enqueueDeepResearchBackground(prompt)
 
     // Store background job id on the task for polling
@@ -175,36 +314,10 @@ export async function checkAndFinalizeResearchForTopic(topicId: string, organiza
       const outputText: string = (resp as any).output_text ?? ''
 
       // Extract URL citations from annotations
-      const annotations: Array<{
-        url: string
-        title: string
-        startIndex: number
-        endIndex: number
-      }> = []
+      const annotations = extractAnnotationsFromResponse(resp)
 
-      try {
-        const output = resp.output || []
-        for (const item of output) {
-          if (item.type === 'message' && item.content) {
-            for (const contentItem of item.content) {
-              if (contentItem.type === 'output_text' && contentItem.annotations) {
-                for (const ann of contentItem.annotations) {
-                  if (ann.type === 'url_citation' && ann.url && ann.title) {
-                    annotations.push({
-                      url: ann.url,
-                      title: ann.title,
-                      startIndex: ann.start_index ?? 0,
-                      endIndex: ann.end_index ?? 0,
-                    })
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error extracting annotations:', err)
-      }
+      // Generate followups using chat model (inline during request)
+      const followups = await generateFollowupsWithChatModel(outputText)
 
       await db.$transaction(async (tx) => {
         await tx.researchTask.update({
@@ -229,6 +342,17 @@ export async function checkAndFinalizeResearchForTopic(topicId: string, organiza
               title: ann.title,
               startIndex: ann.startIndex,
               endIndex: ann.endIndex,
+            }))
+          })
+        }
+
+        // Create Followup records
+        if (followups.length > 0) {
+          await tx.followup.createMany({
+            data: followups.map(f => ({
+              resultId: result.id,
+              topic: f.topic,
+              detail: f.detail,
             }))
           })
         }

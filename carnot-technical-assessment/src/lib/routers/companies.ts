@@ -175,6 +175,7 @@ export const companiesRouter = router({
                   text: true,
                   createdAt: true,
                   links: true,
+                  followups: true,
                 }
               }
             },

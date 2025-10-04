@@ -105,6 +105,7 @@ model ResearchResult {
   rawJson   String?      // Optional: store the full raw JSON response
   createdAt DateTime     @default(now())
   links     Link[]
+  followups Followup[]
 
   @@map("research_results")
 }
@@ -119,5 +120,16 @@ model Link {
   endIndex   Int
 
   @@map("links")
+  @@index([resultId])
+}
+
+model Followup {
+  id       String         @id @default(cuid())
+  resultId String
+  result   ResearchResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  topic    String
+  detail   String
+
+  @@map("followups")
   @@index([resultId])
 }
