@@ -2,10 +2,25 @@
 
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth'
-import { buttonStyle } from './styles'
+import { useState, useRef, useEffect } from 'react'
 
 export function Navigation() {
   const { user, logout } = useAuth()
+  const [showDropdown, setShowDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showDropdown])
 
   return (
     <nav style={{ 
@@ -18,31 +33,71 @@ export function Navigation() {
       backgroundColor: '#000'
     }}>
       <div style={{ display: 'flex', gap: '16px' }}>
-        <Link href="/" style={{ textDecoration: 'none', color: '#fff' }}>
-          Home
-        </Link>
-        
         {user && (
           <>
             <Link href="/companies" style={{ textDecoration: 'none', color: '#fff' }}>
               Companies
             </Link>
-            <Link href="/me" style={{ textDecoration: 'none', color: '#fff' }}>
-              Me
+            <Link href="/admin" style={{ textDecoration: 'none', color: '#fff' }}>
+              Admin
             </Link>
           </>
         )}
       </div>
       
       {user ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ color: '#fff' }}>Welcome, {user.email}</span>
-          <button 
-            onClick={logout}
-            style={buttonStyle}
+        <div style={{ position: 'relative' }} ref={dropdownRef}>
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            style={{
+              background: '#333',
+              border: '1px solid #555',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: '8px 16px',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
           >
-            Logout
+            {user.email}
+            <span style={{ fontSize: '12px' }}>▼</span>
           </button>
+          
+          {showDropdown && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              backgroundColor: '#fff',
+              border: '1px solid #000',
+              minWidth: '150px',
+              boxShadow: '2px 2px 8px rgba(0,0,0,0.2)',
+              zIndex: 1000
+            }}>
+              <button
+                onClick={() => {
+                  logout()
+                  setShowDropdown(false)
+                }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', gap: '16px' }}>

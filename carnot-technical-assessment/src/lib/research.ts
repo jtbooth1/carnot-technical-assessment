@@ -174,19 +174,64 @@ export async function checkAndFinalizeResearchForTopic(topicId: string, organiza
     if (status === 'completed') {
       const outputText: string = (resp as any).output_text ?? ''
 
+      // Extract URL citations from annotations
+      const annotations: Array<{
+        url: string
+        title: string
+        startIndex: number
+        endIndex: number
+      }> = []
+
+      try {
+        const output = resp.output || []
+        for (const item of output) {
+          if (item.type === 'message' && item.content) {
+            for (const contentItem of item.content) {
+              if (contentItem.type === 'output_text' && contentItem.annotations) {
+                for (const ann of contentItem.annotations) {
+                  if (ann.type === 'url_citation' && ann.url && ann.title) {
+                    annotations.push({
+                      url: ann.url,
+                      title: ann.title,
+                      startIndex: ann.start_index ?? 0,
+                      endIndex: ann.end_index ?? 0,
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error extracting annotations:', err)
+      }
+
       await db.$transaction(async (tx) => {
         await tx.researchTask.update({
           where: { id: task.id },
           data: { status: 'COMPLETED', completedAt: new Date() }
         })
 
-        await tx.researchResult.create({
+        const result = await tx.researchResult.create({
           data: {
             taskId: task.id,
             text: outputText || 'No output returned',
             rawJson: JSON.stringify(resp)
           }
         })
+
+        // Create Link records for each annotation
+        if (annotations.length > 0) {
+          await tx.link.createMany({
+            data: annotations.map(ann => ({
+              resultId: result.id,
+              url: ann.url,
+              title: ann.title,
+              startIndex: ann.startIndex,
+              endIndex: ann.endIndex,
+            }))
+          })
+        }
       })
 
       return { status: 'COMPLETED', updated: true }

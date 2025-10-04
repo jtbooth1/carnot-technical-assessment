@@ -212,5 +212,56 @@ export const companiesRouter = router({
       const result = await checkAndFinalizeResearchForTopic(topic.id, ctx.user.organizationId)
       return result
     }),
+
+  resetResearch: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure topic belongs to org and is a company
+      const topic = await db.topic.findFirst({
+        where: {
+          id: input.id,
+          type: 'company',
+          organizationId: ctx.user.organizationId,
+        },
+        select: { id: true }
+      })
+
+      if (!topic) {
+        throw new Error('Company not found')
+      }
+
+      // Find the most recent completed or failed task
+      const task = await db.researchTask.findFirst({
+        where: {
+          topicId: topic.id,
+          status: { in: ['COMPLETED', 'FAILED'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, backgroundId: true }
+      })
+
+      if (!task) {
+        throw new Error('No completed research task found to reset')
+      }
+
+      await db.$transaction(async (tx) => {
+        // Delete the result (cascade will delete links)
+        await tx.researchResult.deleteMany({
+          where: { taskId: task.id }
+        })
+
+        // Reset task to PROCESSING state (right before we got the response)
+        await tx.researchTask.update({
+          where: { id: task.id },
+          data: {
+            status: 'PROCESSING',
+            completedAt: null,
+            error: null,
+          }
+        })
+      })
+
+      return { success: true }
+    }),
 })
 

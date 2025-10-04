@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
 import { useAuth } from '@/contexts/auth'
@@ -44,6 +45,15 @@ export default function Companies() {
   })
 
   const checkStatusMutation = trpc.companies.checkStatus.useMutation({
+    onSuccess: () => {
+      companiesQuery.refetch()
+    },
+    onError: (error) => {
+      setError(error.message)
+    }
+  })
+
+  const resetResearchMutation = trpc.companies.resetResearch.useMutation({
     onSuccess: () => {
       companiesQuery.refetch()
     },
@@ -184,6 +194,39 @@ export default function Companies() {
                       position: 'relative',
                     }}
                   >
+                    {company.researchTasks.length > 0 && 
+                     (company.researchTasks[0].status === 'COMPLETED' || company.researchTasks[0].status === 'FAILED') && (
+                      <button
+                        aria-label="Reset research"
+                        title="Reset research (testing)"
+                        onClick={() => {
+                          if (resetResearchMutation.isPending) return
+                          const ok = window.confirm('Reset this research task to PROCESSING state? This will delete the result and allow re-polling.')
+                          if (!ok) return
+                          resetResearchMutation.mutate({ id: company.id })
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '40px',
+                          width: '24px',
+                          height: '24px',
+                          background: '#c00',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '2px',
+                          cursor: resetResearchMutation.isPending ? 'not-allowed' : 'pointer',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '16px',
+                        }}
+                        disabled={resetResearchMutation.isPending}
+                      >
+                        ↶
+                      </button>
+                    )}
                     <button
                       aria-label="Delete company"
                       title="Delete"
@@ -214,7 +257,14 @@ export default function Companies() {
                     >
                       ×
                     </button>
-                    <h3 style={{ margin: '0 0 8px 0' }}>{company.name}</h3>
+                    <h3 style={{ margin: '0 0 8px 0' }}>
+                      <Link 
+                        href={`/companies/${company.id}`}
+                        style={{ color: 'inherit' }}
+                      >
+                        {company.name}
+                      </Link>
+                    </h3>
                     {company.areasOfInterest && (
                       <p style={{ 
                         fontSize: '14px', 
