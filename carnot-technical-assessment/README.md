@@ -1,3 +1,32 @@
+# Deep Research Platform
+
+DRP is a web app wrapping the OpenAI API to support the user
+in using Deep Research functionality. These docs are provided for the benefit of
+any LLM agent working on this project. If they are unclear or incomplete, please
+alert the user.
+
+## App Layout & Tech Stack
+
+DRP is a stock react-typescript SPA with next.js backend. It uses:
+- @trpc/server & @trpc/client for a typed API
+- @trpc/react-query and @trpc/react-query to handle this on the frontend
+- @prisma/client as a DB wrapper, sqlite inside
+- zod for types
+
+Setup steps, per ChatGPT:
+> npx create-next-app@latest carnot-technical-assessment --typescript --app --eslint
+> cd carnot-technical-assessment
+> npm install @trpc/server @trpc/client @trpc/react-query @tanstack/react-query \
+>   @prisma/client prisma \
+>   zod
+> npx prisma init --datasource-provider sqlite
+
+## Style
+
+The app style is brutalist black-on-white css. We minimize local styling in favor of top-level
+definitions based on <section>/<header>/etc. Corners are not rounded. Padding/margin is 4px/8px/16px.
+There is no color except as specified by the USER.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -32,35 +61,159 @@ The app consists of the following pages:
 ### API Routes
 - **`/api/trpc/*`** - tRPC API endpoints for authentication and messaging
 
+## Authentication & Authorization
+
 ### Authentication Flow
-1. Register a new user at `/register`
-2. Login at `/login` 
-3. Access protected pages (`/messages`, `/me`)
-4. JWT tokens are automatically managed in localStorage
+1. **Register** a new user at `/register`
+   - User provides email and password (optionally: organization name)
+   - Backend creates a new Organization for the user (auto-generated name if not provided)
+   - User is created and linked to the organization
+   - JWT token is generated and returned
+2. **Login** at `/login`
+   - User provides email and password
+   - Backend validates credentials using bcrypt
+   - JWT token is generated and returned
+3. **Access protected pages** (`/messages`, `/me`)
+   - Frontend includes JWT token in request headers
+   - Backend validates token and extracts claims
+4. **JWT tokens** are automatically managed in localStorage by the frontend
+
+### Authentication Implementation
+
+**Technology Stack:**
+- **Password Hashing**: bcryptjs (12 rounds)
+- **JWT Signing**: jsonwebtoken library
+- **Secret**: Stored in `JWT_SECRET` environment variable (defaults to 'your-secret-key' in development)
+- **Token Expiration**: 7 days
+
+**JWT Payload Structure:**
+```typescript
+{
+  userId: string        // User's CUID
+  organizationId: string // Organization's CUID
+  iat: number           // Issued at (automatic)
+  exp: number           // Expiration (automatic)
+}
+```
+
+**tRPC Context:**
+- Protected procedures have access to `ctx.user.userId` and `ctx.user.organizationId`
+- Public procedures have no user context
+- Invalid/missing tokens result in authentication errors
+
+**Security Notes:**
+- Passwords are hashed with bcrypt before storage (never stored in plaintext)
+- JWT secret should be changed in production environments
+- Tokens are stored in localStorage (consider httpOnly cookies for production)
+- All protected endpoints validate JWT before processing requests
+
+### Page Access Control
+
+**Redirect Guards:**
+- All pages **except** `/login` and `/register` require authentication
+- Unauthenticated users attempting to access protected pages are automatically redirected to `/login`
+- The redirect happens after the auth loading state completes to prevent flashing
+- Protected pages include: `/`, `/companies`, `/messages`, `/me`
+
+**Cross-Page Navigation:**
+- Login page includes a link to register: "Don't have an account? Register"
+- Register page includes a link to login: "Already have an account? Login"
+
+**Implementation:**
+Each protected page uses a `useEffect` hook that checks authentication status:
+```typescript
+useEffect(() => {
+  if (!isLoading && !user) {
+    router.push('/login')
+  }
+}, [isLoading, user, router])
+```
 
 ## Database Schema
 
-The app uses SQLite with Prisma ORM. The database contains two main tables:
+The app uses SQLite with Prisma ORM. The database is structured to support multi-tenant organizations with research task management.
 
-### Users Table
+### Core Tables
+
+#### Organizations Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`name`** (String) - Organization name
+- **`createdAt`** (DateTime) - Creation timestamp
+- **`updatedAt`** (DateTime) - Last update timestamp
+- **Relations**: users, topics
+
+#### Users Table
 - **`id`** (String, Primary Key) - Unique identifier using CUID
 - **`email`** (String, Unique) - User's email address for authentication
-- **`password`** (String) - Hashed password using bcrypt
+- **`password`** (String) - Hashed password using bcrypt (12 rounds)
+- **`organizationId`** (String, Foreign Key) - Reference to organization
 - **`createdAt`** (DateTime) - Account creation timestamp
 - **`updatedAt`** (DateTime) - Last update timestamp
-- **`messages`** (Relation) - One-to-many relationship with messages
+- **Relations**: organization, messages, topics
 
-### Messages Table
+#### Messages Table
 - **`id`** (String, Primary Key) - Unique identifier using CUID
 - **`content`** (String) - Message content (1-1000 characters)
 - **`userId`** (String, Foreign Key) - Reference to the user who sent the message
-- **`user`** (Relation) - Many-to-one relationship with users
 - **`createdAt`** (DateTime) - Message creation timestamp
+- **Relations**: user
+
+### Research Management Tables
+
+#### Topics Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`organizationId`** (String, Foreign Key) - Organization that owns the topic
+- **`userId`** (String, Foreign Key) - User who created the topic
+- **`type`** (String) - Topic type (Company, Product, Employee, etc.)
+- **`name`** (String) - Topic name
+- **`private`** (Boolean) - Privacy flag (false = org-wide, true = creator-only)
+- **`createdAt`** (DateTime) - Creation timestamp
+- **`updatedAt`** (DateTime) - Last update timestamp
+- **Relations**: organization, user, researchTasks
+- **Indexes**: (organizationId, private), (userId, type), (organizationId, createdAt)
+
+#### ResearchTask Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`topicId`** (String, Foreign Key) - Topic this research belongs to
+- **`status`** (String) - Task status: PENDING, PROCESSING, COMPLETED, FAILED
+- **`error`** (String, Optional) - Error message if task failed
+- **`createdAt`** (DateTime) - Task creation timestamp
+- **`startedAt`** (DateTime, Optional) - When processing began
+- **`completedAt`** (DateTime, Optional) - When task finished
+- **Relations**: topic, query (1:1), result (1:1)
+- **Indexes**: (topicId, status), (status), (createdAt)
+
+#### ResearchQuery Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`taskId`** (String, Foreign Key, Unique) - Associated research task (1:1)
+- **`prompt`** (String) - Original user prompt
+- **`rewrittenPrompt`** (String, Optional) - OpenAI-rewritten prompt if generated
+- **`createdAt`** (DateTime) - Query creation timestamp
+- **Relations**: task
+
+#### ResearchResult Table
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`taskId`** (String, Foreign Key, Unique) - Associated research task (1:1)
+- **`text`** (String) - Main output text from Deep Research
+- **`rawJson`** (String, Optional) - Full raw JSON response for debugging
+- **`createdAt`** (DateTime) - Result creation timestamp
+- **Relations**: task, links
+
+#### Links Table (Citations)
+- **`id`** (String, Primary Key) - Unique identifier using CUID
+- **`resultId`** (String, Foreign Key) - Associated research result
+- **`url`** (String) - Citation URL
+- **`title`** (String) - Citation title
+- **`startIndex`** (Integer) - Starting position in text
+- **`endIndex`** (Integer) - Ending position in text
+- **Relations**: result
+- **Index**: (resultId)
 
 ### Database Configuration
 - **Provider**: SQLite
 - **File**: `dev.db` (local development)
 - **Prisma Client**: Generated to `src/generated/prisma`
+- **Cascade Deletes**: Deleting an organization cascades to all related records
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

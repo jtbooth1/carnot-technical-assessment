@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
 import { useAuth } from '@/contexts/auth'
@@ -9,7 +10,14 @@ import { buttonStyle } from '@/components/styles'
 export default function Messages() {
   const [content, setContent] = useState('')
   const [message, setMessage] = useState('')
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/login')
+    }
+  }, [isLoading, user, router])
 
   const sendMutation = trpc.messages.send.useMutation({
     onSuccess: (data) => {
@@ -31,16 +39,19 @@ export default function Messages() {
     sendMutation.mutate({ content: content.trim() })
   }
 
-  if (!user) {
+  if (isLoading) {
     return (
       <div style={{ padding: '16px' }}>
         <Navigation />
         <main>
-          <h1>Messages</h1>
-          <p>Please log in to send messages.</p>
+          <h1>Loading...</h1>
         </main>
       </div>
     )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (

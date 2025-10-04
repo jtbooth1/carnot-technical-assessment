@@ -24,8 +24,8 @@ export function Navigation() {
         
         {user && (
           <>
-            <Link href="/messages" style={{ textDecoration: 'none', color: '#fff' }}>
-              Messages
+            <Link href="/companies" style={{ textDecoration: 'none', color: '#fff' }}>
+              Companies
             </Link>
             <Link href="/me" style={{ textDecoration: 'none', color: '#fff' }}>
               Me

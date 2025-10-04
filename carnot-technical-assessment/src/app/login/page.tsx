@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
 import { useAuth } from '@/contexts/auth'
@@ -66,11 +67,14 @@ export default function Login() {
           <button
             type="submit"
             disabled={loginMutation.isPending}
-            style= {{ ...buttonStyle, cursor: loginMutation.isPending ? 'not-allowed' : 'pointer' }}
+            style={{ ...buttonStyle, cursor: loginMutation.isPending ? 'not-allowed' : 'pointer' }}
           >
             {loginMutation.isPending ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <p style={{ marginTop: '16px' }}>
+          Don&apos;t have an account? <Link href="/register" style={{ textDecoration: 'underline' }}>Register</Link>
+        </p>
       </main>
     </div>
   )

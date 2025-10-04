@@ -1,26 +1,23 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
 import { useAuth } from '@/contexts/auth'
 
 export default function Me() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { data, isLoading, error } = trpc.auth.me.useQuery()
+  const router = useRouter()
 
-  if (!user) {
-    return (
-      <div style={{ padding: '16px' }}>
-        <Navigation />
-        <main>
-          <h1>Me</h1>
-          <p>Please log in to view your profile.</p>
-        </main>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login')
+    }
+  }, [authLoading, user, router])
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div style={{ padding: '16px' }}>
         <Navigation />
@@ -30,6 +27,10 @@ export default function Me() {
         </main>
       </div>
     )
+  }
+
+  if (!user) {
+    return null
   }
 
   if (error) {

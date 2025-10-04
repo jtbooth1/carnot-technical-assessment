@@ -11,15 +11,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Organization {
   id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  messages  Message[]
+  users     User[]
+  topics    Topic[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  password       String
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       Message[]
+  topics         Topic[]
 
   @@map("users")
+  @@index([organizationId])
 }
 
 model Message {
@@ -30,4 +45,78 @@ model Message {
   createdAt DateTime @default(now())
 
   @@map("messages")
+}
+
+model Topic {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String         // Owner/creator of the topic
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String         // Company, Product, Employee, etc.
+  name            String
+  areasOfInterest String?        // Optional field for describing research focus areas
+  private         Boolean        @default(false) // If true, only visible to owner; if false, visible to org
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  researchTasks   ResearchTask[]
+
+  @@map("topics")
+  @@index([organizationId, private])
+  @@index([userId, type])
+  @@index([organizationId, createdAt])
+}
+
+model ResearchTask {
+  id            String          @id @default(cuid())
+  topicId       String
+  topic         Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  status        String          // PENDING, PROCESSING, COMPLETED, FAILED
+  error         String?         // Error message if failed
+  createdAt     DateTime        @default(now())
+  startedAt     DateTime?       // When processing actually began
+  completedAt   DateTime?       // When it finished (success or failure)
+  query         ResearchQuery?
+  result        ResearchResult?
+
+  @@map("research_tasks")
+  @@index([topicId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ResearchQuery {
+  id              String       @id @default(cuid())
+  taskId          String       @unique
+  task            ResearchTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  prompt          String       // Original user prompt
+  rewrittenPrompt String?      // OpenAI-rewritten prompt (if generated)
+  createdAt       DateTime     @default(now())
+
+  @@map("research_queries")
+}
+
+model ResearchResult {
+  id        String       @id @default(cuid())
+  taskId    String       @unique
+  task      ResearchTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  text      String       // The main output_text content
+  rawJson   String?      // Optional: store the full raw JSON response
+  createdAt DateTime     @default(now())
+  links     Link[]
+
+  @@map("research_results")
+}
+
+model Link {
+  id         String         @id @default(cuid())
+  resultId   String
+  result     ResearchResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  url        String
+  title      String
+  startIndex Int
+  endIndex   Int
+
+  @@map("links")
+  @@index([resultId])
 }

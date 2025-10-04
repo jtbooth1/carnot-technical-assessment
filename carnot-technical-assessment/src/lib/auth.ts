@@ -5,10 +5,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export interface JWTPayload {
   userId: string
+  organizationId: string
 }
 
-export function generateToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' })
+export function generateToken(userId: string, organizationId: string): string {
+  return jwt.sign({ userId, organizationId }, JWT_SECRET, { expiresIn: '7d' })
 }
 
 export function verifyToken(token: string): JWTPayload | null {

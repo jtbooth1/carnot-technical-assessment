@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { trpc } from '@/lib/trpc-client'
 import { useAuth } from '@/contexts/auth'
+import { buttonStyle } from '@/components/styles'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -66,16 +68,14 @@ export default function Register() {
           <button
             type="submit"
             disabled={registerMutation.isPending}
-            style={{
-              padding: '8px 16px',
-              border: '1px solid #000',
-              background: 'white',
-              cursor: registerMutation.isPending ? 'not-allowed' : 'pointer'
-            }}
+            style={{ ...buttonStyle, cursor: registerMutation.isPending ? 'not-allowed' : 'pointer' }}
           >
             {registerMutation.isPending ? 'Registering...' : 'Register'}
           </button>
         </form>
+        <p style={{ marginTop: '16px' }}>
+          Already have an account? <Link href="/login" style={{ textDecoration: 'underline' }}>Login</Link>
+        </p>
       </main>
     </div>
   )
