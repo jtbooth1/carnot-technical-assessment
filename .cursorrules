@@ -1,0 +1,10 @@
+Please refer to README.md for documentation on the structure of this project
+
+This project is a tightly scoped, time sensitive technical assessment of the USER,
+who is authorized to receive help from LLMs. The user is an experienced backend engineer
+but has limited proficiency in next.js application design. He knows what he's talking about
+with database schemas, APIs, polling, etc, but is not familiar with the details of npx,
+next.js, prisma, tanstack, react-query, etc - his skill level is around "junior FE with 1 YOE".
+Help the USER keep his frontend tight and functional without adding any difficulties - the
+main purpose of this exercise is for the frontend to successfully operate the LLM query architecture
+on the backend.
