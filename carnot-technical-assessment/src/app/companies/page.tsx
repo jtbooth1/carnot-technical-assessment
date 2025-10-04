@@ -43,6 +43,15 @@ export default function Companies() {
     }
   })
 
+  const checkStatusMutation = trpc.companies.checkStatus.useMutation({
+    onSuccess: () => {
+      companiesQuery.refetch()
+    },
+    onError: (error) => {
+      setError(error.message)
+    }
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -193,6 +202,22 @@ export default function Companies() {
                         <div style={{ marginTop: '8px', fontWeight: 'bold' }}>
                           Latest research: {company.researchTasks[0].status}
                         </div>
+                      )}
+                      {company.researchTasks.length > 0 && company.researchTasks[0].status === 'PROCESSING' && (
+                        <button
+                          onClick={() => {
+                            if (checkStatusMutation.isPending) return
+                            checkStatusMutation.mutate({ id: company.id })
+                          }}
+                          disabled={checkStatusMutation.isPending}
+                          style={{ 
+                            ...buttonStyle, 
+                            marginTop: '8px', 
+                            cursor: checkStatusMutation.isPending ? 'not-allowed' : 'pointer' 
+                          }}
+                        >
+                          {checkStatusMutation.isPending ? 'Checking…' : 'Check Status'}
+                        </button>
                       )}
                       {company.private && (
                         <div style={{ marginTop: '4px', fontStyle: 'italic' }}>

@@ -133,3 +133,87 @@ export async function startResearchForTopicId(topicId: string, organizationId: s
 }
 
 
+export async function checkAndFinalizeResearchForTopic(topicId: string, organizationId: string): Promise<{ status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED', updated: boolean }> {
+  // Ensure the topic belongs to this org
+  const topic = await db.topic.findFirst({
+    where: { id: topicId, organizationId },
+    select: { id: true }
+  })
+
+  if (!topic) {
+    throw new Error('Topic not found')
+  }
+
+  // Find the most recent non-terminal task
+  const task = await db.researchTask.findFirst({
+    where: {
+      topicId,
+      status: { in: ['PENDING', 'PROCESSING'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true, backgroundId: true }
+  })
+
+  if (!task) {
+    // Nothing to do; treat as completed from a checking perspective
+    return { status: 'COMPLETED', updated: false }
+  }
+
+  // If we don't yet have a background id, we can't poll; return current status
+  if (!task.backgroundId) {
+    return { status: task.status as any, updated: false }
+  }
+
+  try {
+    const resp: any = await openai.responses.retrieve(task.backgroundId)
+
+    const status: string = (resp && resp.status) || 'PROCESSING'
+
+    if (status === 'completed') {
+      const outputText: string = (resp as any).output_text ?? ''
+
+      await db.$transaction(async (tx) => {
+        await tx.researchTask.update({
+          where: { id: task.id },
+          data: { status: 'COMPLETED', completedAt: new Date() }
+        })
+
+        await tx.researchResult.create({
+          data: {
+            taskId: task.id,
+            text: outputText || 'No output returned',
+            rawJson: JSON.stringify(resp)
+          }
+        })
+      })
+
+      return { status: 'COMPLETED', updated: true }
+    }
+
+    if (status === 'failed' || status === 'cancelled' || status === 'expired') {
+      // Log full OpenAI response for diagnostics
+      try {
+        console.error('Background research job failed', {
+          topicId,
+          taskId: task.id,
+          backgroundId: task.backgroundId,
+          status,
+          openaiResponse: resp,
+        })
+      } catch {}
+      await db.researchTask.update({
+        where: { id: task.id },
+        data: { status: 'FAILED', completedAt: new Date(), error: `Background job ${status}` }
+      })
+      return { status: 'FAILED', updated: true }
+    }
+
+    // still running or queued
+    return { status: task.status as any, updated: false }
+  } catch (err) {
+    // Swallow polling errors; surface as no-op so UI can retry
+    console.error('checkAndFinalizeResearchForTopic error:', err)
+    return { status: task.status as any, updated: false }
+  }
+}
+

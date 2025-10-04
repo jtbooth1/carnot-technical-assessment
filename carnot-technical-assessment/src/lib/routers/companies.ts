@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc'
 import { db } from '../db'
-import { startResearchForTopicId } from '../research'
+import { startResearchForTopicId, checkAndFinalizeResearchForTopic } from '../research'
 
 export const companiesRouter = router({
   create: protectedProcedure
@@ -190,6 +190,27 @@ export const companiesRouter = router({
       }
 
       return company
+    }),
+
+  checkStatus: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Ensure topic belongs to org and is a company
+      const topic = await db.topic.findFirst({
+        where: {
+          id: input.id,
+          type: 'company',
+          organizationId: ctx.user.organizationId,
+        },
+        select: { id: true }
+      })
+
+      if (!topic) {
+        throw new Error('Company not found')
+      }
+
+      const result = await checkAndFinalizeResearchForTopic(topic.id, ctx.user.organizationId)
+      return result
     }),
 })
 
